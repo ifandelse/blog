@@ -1,19 +1,24 @@
 ---
 // Terminal-style headers like: $ ls ~/posts
+import TypingText from './TypingText.astro';
 
 interface Props {
   command: string;
   showCursor?: boolean;
+  typewriter?: boolean;
   size?: 'sm' | 'md' | 'lg' | 'xl';
   class?: string;
 }
 
-const { 
-  command, 
-  showCursor = false, 
+const {
+  command,
+  showCursor = false,
+  typewriter = false,
   size = 'lg',
   class: className = ''
 } = Astro.props;
+
+const typingSpeed = typewriter ? Math.max(20, Math.min(80, Math.round(1200 / command.length))) : 0;
 
 const sizeClasses = {
   sm: 'text-lg',
@@ -25,7 +30,11 @@ const sizeClasses = {
 
 <div class:list={["terminal-header", sizeClasses[size], className]}>
   <span class="terminal-prompt">$</span>
-  <span class="terminal-command">{command}</span>
+  {typewriter ? (
+    <TypingText text={command} speed={typingSpeed} hideCursor={true} class="terminal-command" />
+  ) : (
+    <span class="terminal-command">{command}</span>
+  )}
   {showCursor && <span class="terminal-cursor"></span>}
 </div>
 
