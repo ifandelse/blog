@@ -1,16 +1,16 @@
 // @ts-check
-
-import mdx from '@astrojs/mdx';
-import sitemap from '@astrojs/sitemap';
 import { defineConfig } from 'astro/config';
+import tailwindcss from '@tailwindcss/vite';
+import sitemap from '@astrojs/sitemap';
+import mdx from '@astrojs/mdx';
 
-// https://astro.build/config
 export default defineConfig({
 	site: 'https://ifandelse.com',
-	integrations: [mdx(), sitemap()],
-	markdown: {
-		shikiConfig: {
-			theme: 'github-dark',
-		},
-	},
+	integrations: [
+		mdx(),
+		sitemap()
+	],
+	vite: {
+		plugins: [tailwindcss()]
+	}
 });
