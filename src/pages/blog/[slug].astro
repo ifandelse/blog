@@ -6,6 +6,7 @@ import CopyCode from '../../components/CopyCode.astro';
 import PostNavigation from '../../components/PostNavigation.astro';
 import Breadcrumbs from '../../components/Breadcrumbs.astro';
 import { getCollection } from 'astro:content';
+import TypingText from '../../components/TypingText.astro';
 import { formatDate, getReadingTime, sortPostsByDate, filterDrafts } from '../../lib/utils';
 import { siteConfig } from '../../config';
 
@@ -28,6 +29,7 @@ const { Content, headings } = await post.render();
 
 const formattedDate = formatDate(post.data.date);
 const readingTime = getReadingTime(post.body);
+const typingSpeed = Math.max(20, Math.min(60, Math.round(1500 / post.data.title.length)));
 ---
 
 <Layout 
@@ -51,7 +53,8 @@ const readingTime = getReadingTime(post.body);
       <!-- Post Header -->
       <header class="mb-10">
         <h1 class="text-3xl md:text-4xl font-bold font-mono mb-4">
-          {post.data.title}
+          <span class="sr-only">{post.data.title}</span>
+          <TypingText text={post.data.title} speed={typingSpeed} hideCursor={true} class="typing-title" />
         </h1>
         
         <div class="flex flex-wrap items-center gap-4 text-sm text-muted-foreground font-mono">

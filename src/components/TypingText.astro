@@ -5,14 +5,15 @@ interface Props {
   text: string;
   speed?: number;
   delay?: number;
+  hideCursor?: boolean;
   class?: string;
 }
 
-const { text, speed = 50, delay = 0, class: className = '' } = Astro.props;
+const { text, speed = 50, delay = 0, hideCursor = false, class: className = '' } = Astro.props;
 const id = `typing-${Math.random().toString(36).substr(2, 9)}`;
 ---
 
-<span id={id} class:list={["typing-text", className]} data-text={text} data-speed={speed} data-delay={delay}></span>
+<span id={id} class:list={["typing-text", className]} data-text={text} data-speed={speed} data-delay={delay} data-hide-cursor={hideCursor ? "true" : undefined}></span>
 
 <script>
   function initTypingAnimations() {
@@ -28,11 +29,15 @@ const id = `typing-${Math.random().toString(36).substr(2, 9)}`;
       
       let index = 0;
       
+      const hideCursor = el.dataset.hideCursor === 'true';
+
       function type() {
         if (index < text.length) {
           el.textContent += text.charAt(index);
           index++;
           setTimeout(type, speed);
+        } else if (hideCursor) {
+          el.classList.add('typing-done');
         }
       }
       
@@ -51,6 +56,12 @@ const id = `typing-${Math.random().toString(36).substr(2, 9)}`;
   .typing-text::after {
     content: '▋';
     animation: blink 1s infinite;
+    transition: opacity 0.5s ease;
+  }
+
+  .typing-done::after {
+    opacity: 0;
+    animation: none;
   }
   
   @keyframes blink {

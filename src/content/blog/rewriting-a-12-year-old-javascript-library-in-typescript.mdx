@@ -2,8 +2,8 @@
 title: "Rewriting a 12-Year-Old JavaScript Library in TypeScript"
 description: "How Erlang's gen_fsm inspired a JavaScript state machine library, why I rebuilt it in TypeScript 12 years later, and why finite state machines still matter."
 date: 2026-02-24
-tags: ["typescript", "javascript", "open-source"]
-draft: true
+tags: ["typescript", "javascript", "open-source", "FSM"]
+draft: false
 ---
 
 In 2011, I experienced a new kind of neuroplasticity with getting my head around [Erlang](https://www.erlang.org/). Heavily entrenched in C# and JavaScript at the time, the breakthrough of learning how to "think in Erlang" felt like an epiphany. [OTP](https://www.erlang.org/doc/design_principles/des_princ) — Erlang's standard library/framework for concurrent systems — felt like discovering a book of cheat codes on mental models. I was particularly impressed by the practical wisdom packed into the behavior module for writing finite state machines: [`gen_fsm`](https://www.erlang.org/docs/18/man/gen_fsm) (which [`gen_statem`](https://www.erlang.org/doc/man/gen_statem) has since succeeded). If elegant simplicity had a reference example, gen_fsm was it.
