@@ -8,4 +8,9 @@ import { defineConfig } from 'astro/config';
 export default defineConfig({
 	site: 'https://ifandelse.com',
 	integrations: [mdx(), sitemap()],
+	markdown: {
+		shikiConfig: {
+			theme: 'github-dark',
+		},
+	},
 });
