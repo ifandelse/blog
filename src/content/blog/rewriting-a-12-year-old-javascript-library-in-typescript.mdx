@@ -65,7 +65,7 @@ The rewrite wasn't just a port — it was a chance to ask what actually matters 
 
 ### Most FSM-based solutions don't need an actor system.
 
-This gets to the core of what inspired machina originally. A workflow with a handful of states needs an abstraction that is readily grok-able, and doesn't need the full power of an [actor system](https://en.wikipedia.org/wiki/Actor_model) to deliver the solution. (The amazing thing, of course, about the maturity of the web/TypeScript ecosystem today is that you _do_ have amazing actor systems to call upon when you need it.)
+This gets to the core of what inspired machina originally. A workflow with a handful of states needs an abstraction that is readily grok-able, and doesn't need the full power of an [actor system](https://en.wikipedia.org/wiki/Actor_model) to deliver the solution. (The amazing thing, of course, about the maturity of the web/TypeScript ecosystem today is that you _do_ have powerful actor systems to call upon when you need it.)
 
 ### Behavior and state should be separable
 
@@ -210,7 +210,7 @@ Making the type safety burden minimal while keeping all the benefits is exactly 
 
 The machina API is simple enough that you can describe what you want in plain English and an LLM can write the FSM for you. Just point it at the [llms.txt](https://machina-js.org/llms.txt) to get started.
 
-machina v6 [is on npm](https://www.npmjs.com/package/machina). The docs and several example apps are available at [machina-js.org](https://machina-js.org/). If you're tired of modeling state with chains of booleans and switch statements, and you wish you could somehow neatly tuck the frustratingly pervasive branching logic inherent to modern UI, give FSMs a try. And if you've tried FSMs before, but bounced off of the complexity and steep learning curve, machina might be able to help.
+machina v6 [is on npm](https://www.npmjs.com/package/machina). The docs and several example apps are available at [machina-js.org](https://machina-js.org/). If you're tired of modeling state with chains of booleans and switch statements, and you wish you could somehow neatly tuck away the frustratingly pervasive branching logic inherent to modern UI, give FSMs a try. And if you've tried FSMs before, but bounced off of the complexity and steep learning curve, machina might be able to help.
 
 Browse the source on [github](https://github.com/ifandelse/machina.js) or jump straight to the
 [Getting Started Guide](https://machina-js.org/guide/getting-started/).
