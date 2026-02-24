@@ -15,7 +15,7 @@ const tags = getUniqueTags(posts);
 <Layout title={`Blog | ${siteConfig.title}`}>
   <section class="py-16">
     <div class="container max-w-4xl mx-auto px-6">
-      <TerminalHeader command="find . -name '*.md' -type f" size="xl" class="mb-4" />
+      <TerminalHeader command="find . -name '*.md' -type f" size="xl" typewriter={true} class="mb-4" />
       
       <div class="font-mono text-sm text-muted-foreground mb-10">
         <span class="terminal-prompt">$</span>
