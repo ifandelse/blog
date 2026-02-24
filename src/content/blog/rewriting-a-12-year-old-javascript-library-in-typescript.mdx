@@ -1,0 +1,216 @@
+---
+title: "Rewriting a 12-Year-Old JavaScript Library in TypeScript"
+description: "How Erlang's gen_fsm inspired a JavaScript state machine library, why I rebuilt it in TypeScript 12 years later, and why finite state machines still matter."
+date: 2026-02-24
+tags: ["typescript", "javascript", "open-source"]
+draft: true
+---
+
+In 2011, I experienced a new kind of neuroplasticity with getting my head around [Erlang](https://www.erlang.org/). Heavily entrenched in C# and JavaScript at the time, the breakthrough of learning how to "think in Erlang" felt like an epiphany. [OTP](https://www.erlang.org/doc/design_principles/des_princ) — Erlang's standard library/framework for concurrent systems — felt like discovering a book of cheat codes on mental models. I was particularly impressed by the practical wisdom packed into the behavior module for writing finite state machines: [`gen_fsm`](https://www.erlang.org/docs/18/man/gen_fsm) (which [`gen_statem`](https://www.erlang.org/doc/man/gen_statem) has since succeeded). If elegant simplicity had a reference example, gen_fsm was it.
+
+"Why isn't there something like this in JavaScript?" The question nagged me.
+
+The JavaScript ecosystem of 2011 was dominated by jQuery, Backbone, Grunt, and the fight over AMD vs CJS modules. CoffeeScript was popular. TypeScript was in a Microsoft Research lab & wouldn't be released until the next year. Node.js was _two_ years old. IE 8 and 9 were still major browser targets. _Involuntary shivers_.
+
+The more I lived in frontend development, the more I saw problems where finite state machines (FSMs) could be a great fit. That's how `gen_fsm` ended up inspiring the original [machina](https://github.com/ifandelse/machina.js) project. It was incredibly encouraging to see how it not only helped my own team solve problems, but it gained traction in helping others around the world.
+
+It was one of my favorite pet projects (still is) — and we continued to build on it, adding "behavioral" FSMs and then hierarchical support. It opened doors for me and helped establish new friendships and connections. And yet, life has a way of laughing at the plans you make. Within a few tightly packed years, I became a dad for the 3rd time, started leading a large team, took on a massive UI rewrite, and eventually stepped out as a technical co-founder at a startup. I don't regret the priorities I focused on (your kids are only young once - and the days are long but the years are _fast_), but this meant machina missed out on a lot of TLC.
+
+When I finally came back to it, the landscape had changed significantly. Some new impressive FSM libraries existed. Myriad frameworks made claims they could handle on their own the concerns that libraries like machina used to take care of. Was machina's usefulness done?
+
+Yet, I live in those frameworks daily. The promises of sane state management still leave us feeling like Sisyphus. The complexity has grown, not abated. There are more async operations, more conditional UI, and more workflow orchestration, and still most teams are given a bag of booleans, and a prayer, and told "good luck, we're all counting on you". Every time I came across something like `isLoading && !isError && hasData && !isStale`, it was a sharp reminder that FSMs aren't academic. They are the natural model for any system with distinct modes and rules about moving between them.
+
+## So, I rewrote it
+
+Examining machina felt a bit like an archaeological dig. The core concepts were sound, but the implementation was captive to pre-ES6 patterns and outdated approaches to composition. Initially I intended to bolt-on type definitions, but a rebuild proved to be the only way to get the ergonomics right.
+
+I wanted to write it from the ground-up in TypeScript, with a modern build tool chain and zero dependencies. The API is more focused without sacrificing the original readability earlier versions had.
+
+Here's an example:
+
+```typescript
+import { createFsm } from "machina";
+
+const trafficLight = createFsm({
+  id: "traffic-light",
+  initialState: "green",
+  context: { tickCount: 0 },
+  states: {
+    green: {
+      _onEnter({ ctx }) {
+        ctx.tickCount = 0; // resets to 0 when transitioning from red
+      },
+      tick({ ctx }) {
+        ctx.tickCount++;
+      },
+      timeout({ ctx }) {
+        return ctx.tickCount >= 2 ? "yellow" : undefined;
+      },
+    },
+    yellow: { timeout: "red" },
+    red: { timeout: "green" },
+  },
+});
+
+trafficLight.on("transitioned", ({ fromState, toState }) => {
+  console.log(`${fromState} -> ${toState}`);
+});
+
+trafficLight.handle("tick");
+trafficLight.handle("tick");
+trafficLight.handle("timeout"); // green -> yellow
+```
+
+The rewrite wasn't just a port — it was a chance to ask what actually matters when you're reaching for an FSM in 2026.
+
+### Most FSM-based solutions don't need an actor system.
+
+This gets to the core of what inspired machina originally. A workflow with a handful of states needs an abstraction that is readily grok-able, and doesn't need the full power of an [actor system](https://en.wikipedia.org/wiki/Actor_model) to deliver the solution. (The amazing thing, of course, about the maturity of the web/TypeScript ecosystem today is that you _do_ have amazing actor systems to call upon when you need it.)
+
+### Behavior and state should be separable
+
+Machina has had (and still does in the new version), a `BehavioralFsm` type. This is definitely a nod of homage to `gen_fsm`. One set of state rules that can be applied to n-number of entities. I think this is one of the most compelling features of the library. In fact, the `createFsm` factory is simply a wrapper around a `BehavioralFsm`. Managing hundreds (or more) entities but not needing an FSM or Actor instance for each one really adds up in performance gains. (Check out the ["dungeon critters" example in the docs](https://machina-js.org/examples/dungeon-critters/).)
+
+```typescript
+import { createBehavioralFsm } from "machina";
+
+interface Connection {
+  url: string;
+  retries: number;
+}
+
+const connFsm = createBehavioralFsm<Connection>({
+  id: "connectivity",
+  initialState: "disconnected",
+  states: {
+    disconnected: {
+      connect({ ctx }) {
+        ctx.retries = 0;
+        return "connecting";
+      },
+    },
+    connecting: {
+      success: "connected",
+      failure({ ctx }) {
+        ctx.retries++;
+        if (ctx.retries >= 3) {
+          return "disconnected";
+        }
+        // else - stays in "connecting" — no transition noise
+      },
+    },
+    connected: {
+      disconnect: "disconnected",
+    },
+  },
+});
+
+// One definition, many clients
+const api = { url: "https://api.example.com", retries: 0 };
+const ws = { url: "wss://stream.example.com", retries: 0 };
+
+connFsm.handle(api, "connect");
+connFsm.handle(ws, "connect");
+
+connFsm.currentState(api); // "connecting"
+connFsm.currentState(ws); // "connecting"
+```
+
+### Deferred inputs solve the async problem without async machinery
+
+Some approaches solve async by building it into the engine. This is understandable, but machina takes the opposite approach. The FSM's API stays synchronous. Async operations happen (effectively) outside the FSM, and their results are fed back into the FSM as inputs. The `defer` method in machina lets you deal with inputs _when you are ready to_, even if they arrive when you aren't ready. Sometimes async is best handled by elegantly simple queued synchronicity.
+
+```typescript
+import { createFsm } from "machina";
+
+const form = createFsm({
+  id: "submission",
+  initialState: "editing",
+  context: { data: null as string | null },
+  states: {
+    editing: {
+      submit: "validating",
+    },
+    validating: {
+      // not ready to save yet — queue it for when we are
+      save({ defer, ctx }, data) {
+        ctx.data = data;
+        defer({ until: "ready" });
+      },
+      valid: "ready",
+      invalid: "editing",
+    },
+    ready: {
+      save({ ctx }) {
+        console.log("saving:", ctx.data);
+        return "submitted";
+      },
+    },
+    submitted: {},
+  },
+});
+
+form.handle("submit");
+form.handle("save", "SOME_DATA"); // deferred — we're still validating
+form.handle("valid"); // transitions to "ready", "save" replays automatically
+```
+
+### Type safety doesn't have to mean type verbosity.
+
+```typescript
+// You write this. That's it. No type parameters, no setup ceremony.
+const machine = createFsm({
+  id: "order",
+  initialState: "idle",
+  context: { total: 0, items: [] as string[] },
+  states: {
+    idle: {
+      addItem({ ctx }, item: string) {
+        ctx.items.push(item);
+        ctx.total++; // ✅ TypeScript knows ctx.total is a number
+      },
+      checkout: "confirming", // ✅ TypeScript validates "confirming" exists
+    },
+    confirming: {
+      confirm: "processing",
+      cancel: "idle",
+    },
+    processing: {
+      complete: "fulfilled",
+      fail: "idle",
+    },
+    fulfilled: {},
+  },
+});
+
+// TypeScript inferred everything from the config object:
+
+machine.handle("addItem", "widget"); // ✅ "addItem" is a known input
+machine.handle("checkout"); // ✅
+machine.handle("nope"); // ❌ Argument of type '"nope"' is not
+//    assignable to parameter...
+
+machine.transition("confirming"); // ✅ "confirming" is a known state
+machine.transition("shipped"); // ❌ "shipped" doesn't exist
+```
+
+The only time you have to explicitly pass a type arg to a machina factory is when you create a BehavioralFsm (and this is only b/c the "client" state is external to the FSM):
+
+```typescript
+const connFsm = createBehavioralFsm<Connection>({
+  id: "connectivity",
+  initialState: "disconnected",
+  states: {
+    /* ... */
+  },
+});
+```
+
+Making the type safety burden minimal while keeping all the benefits is exactly what is needed. These abstractions are meant to get out of the way so we can solve the problem - and reasoning about the problem is much easier when the implementation isn't preceded by 30+ lines of complex type definitions.
+
+The machina API is simple enough that you can describe what you want in plain English and an LLM can write the FSM for you. Just point it at the [llms.txt](https://machina-js.org/llms.txt) to get started.
+
+machina v6 [is on npm](https://www.npmjs.com/package/machina). The docs and several example apps are available at [machina-js.org](https://machina-js.org/). If you're tired of modeling state with chains of booleans and switch statements, and you wish you could somehow neatly tuck the frustratingly pervasive branching logic inherent to modern UI, give FSMs a try. And if you've tried FSMs before, but bounced off of the complexity and steep learning curve, machina might be able to help.
+
+Browse the source on [github](https://github.com/ifandelse/machina.js) or jump straight to the
+[Getting Started Guide](https://machina-js.org/guide/getting-started/).
