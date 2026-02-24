@@ -44,7 +44,7 @@ const currentPath = Astro.url.pathname;
       tags={tags}
     />
     <!-- Umami Analytics -->
-    <script defer src="https://cloud.umami.is/script.js" data-website-id="0c0d085e-0d62-459e-a267-409e1a8f7571"></script>
+    <script is:inline defer src="https://cloud.umami.is/script.js" data-website-id="0c0d085e-0d62-459e-a267-409e1a8f7571"></script>
     <!-- Apply theme before paint to prevent flash -->
     <script is:inline data-default-theme={siteConfig.theme.defaultTheme}>
       (function() {
