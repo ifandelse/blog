@@ -7,6 +7,7 @@ import PostNavigation from '../../components/PostNavigation.astro';
 import Breadcrumbs from '../../components/Breadcrumbs.astro';
 import { getCollection } from 'astro:content';
 import TypingText from '../../components/TypingText.astro';
+import Comments from '../../components/Comments.astro';
 import { formatDate, getReadingTime, sortPostsByDate, filterDrafts } from '../../lib/utils';
 import { siteConfig } from '../../config';
 
@@ -90,6 +91,9 @@ const typingSpeed = Math.max(20, Math.min(60, Math.round(1500 / post.data.title.
         prev={prevPost ? { title: prevPost.data.title, slug: prevPost.slug } : undefined}
         next={nextPost ? { title: nextPost.data.title, slug: nextPost.slug } : undefined}
       />
+
+      <!-- Comments -->
+      <Comments />
 
       <!-- Post Footer -->
       <footer class="mt-8 pt-8 border-t flex items-center justify-between">

@@ -79,6 +79,21 @@ export const siteConfig = {
     rss: true,
   },
 
+  comments: {
+    enabled: true,
+    giscus: {
+      repo: 'ifandelse/blog',
+      repoId: 'R_kgDORXPc1g',
+      category: 'Blog Comments',
+      categoryId: 'DIC_kwDORXPc1s4C3JwV',
+      mapping: 'pathname' as const,
+      reactionsEnabled: true,
+      emitMetadata: false,
+      inputPosition: 'bottom' as const,
+      loading: 'lazy' as const,
+    },
+  },
+
   advanced: {
     commandPalette: true,
     showCopyCode: true,

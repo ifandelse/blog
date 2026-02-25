@@ -1,0 +1,62 @@
+---
+import { siteConfig } from '../config';
+
+const { giscus } = siteConfig.comments;
+---
+
+{siteConfig.comments.enabled && (
+  <section class="mt-12 pt-8 border-t border-border">
+    <h2 class="font-mono text-lg mb-6 text-muted-foreground">// comments</h2>
+    <div class="giscus-container">
+      <script
+        is:inline
+        src="https://giscus.app/client.js"
+        data-repo={giscus.repo}
+        data-repo-id={giscus.repoId}
+        data-category={giscus.category}
+        data-category-id={giscus.categoryId}
+        data-mapping={giscus.mapping}
+        data-strict="0"
+        data-reactions-enabled={giscus.reactionsEnabled ? '1' : '0'}
+        data-emit-metadata={giscus.emitMetadata ? '1' : '0'}
+        data-input-position={giscus.inputPosition}
+        data-theme="dark_dimmed"
+        data-lang="en"
+        data-loading={giscus.loading}
+        crossorigin="anonymous"
+        async
+      />
+    </div>
+  </section>
+)}
+
+<script is:inline>
+  // Map blog themes to Giscus themes
+  function getGiscusTheme(blogTheme) {
+    const lightThemes = [
+      'clean-white', 'catppuccin-latte', 'rose-pine-dawn',
+      'nord-light', 'solarized-light', 'gruvbox-light', 'tokyo-night-light'
+    ];
+    return lightThemes.includes(blogTheme) ? 'light' : 'dark_dimmed';
+  }
+
+  function updateGiscusTheme(theme) {
+    const iframe = document.querySelector('iframe.giscus-frame');
+    if (!iframe) return;
+    iframe.contentWindow.postMessage(
+      { giscus: { setConfig: { theme: getGiscusTheme(theme) } } },
+      'https://giscus.app'
+    );
+  }
+
+  // Watch for theme changes via the data-theme attribute
+  const observer = new MutationObserver((mutations) => {
+    for (const mutation of mutations) {
+      if (mutation.attributeName === 'data-theme') {
+        const newTheme = document.documentElement.getAttribute('data-theme');
+        if (newTheme) updateGiscusTheme(newTheme);
+      }
+    }
+  });
+  observer.observe(document.documentElement, { attributes: true });
+</script>
