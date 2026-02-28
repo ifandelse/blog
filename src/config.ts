@@ -10,7 +10,7 @@ export const siteConfig = {
     coreNav: [
       { text: "Blog", href: "/blog" },
     ],
-    showThemeSwitcher: false,
+    showThemeSwitcher: true,
   },
 
   hero: {
