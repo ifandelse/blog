@@ -1,0 +1,75 @@
+---
+title: "AI Made My Expertise Economically Viable"
+description: "Vibe Coding works for throwaway apps. But what about the systems that accumulated 15 years of implicit decisions? AI didn't replace my domain expertise, it made it worth deploying again."
+date: 2026-03-05
+tags: ["ai", "open-source", "typescript"]
+draft: false
+---
+
+Two full OSS library rewrites, five supporting libraries, two documentation sites, and eleven example apps — all in two weeks of evenings and weekends.
+
+Two years ago I estimated this work at **12–16 weeks**.
+
+But this isn't another "AI did it for me while I binged Netflix" post. The [machina](https://machina-js.org) and [postal](https://postal-js.org) rewrites _mattered_ to me not just as the author, but because I have real world use cases (with money on the line) that warranted bringing them into the tools of the current web.
+
+I had those real world use cases two years ago, but I couldn't spare the 4-6 weeks _just_ the base library rewrites and supporting libraries would've cost then.
+
+In December 2025 the math changed. The cost of freeing domain expertise trapped in old code suddenly collapsed.
+
+## Hostage Negotiations
+
+How much hidden economic potential and knowledge is currently trapped in codebases simply because it's too expensive to extract? How many opportunities for meaningful differentiation are passed over because of tech debt that's too costly to refactor or replace?
+
+"Stranded expertise" is the term I use to describe these situations. There are two general types.
+
+**The Stranded Expert**
+
+Developers, DevOps, PMs - we know this well. We've optimized for velocity. Told ourselves we'll get to that tech debt in our sustainability sprint. And it compounds...collects high interest. We know the system, we see how accumulated debt is slowing us down, but taking time to refactor costs real money. The decision to stop and refactor isn't just expensive - the risk means your competitors could outstrip you entirely. The experts look on, powerless to address the things that could truly level up not just the application, but the organization building it. These experts are stranded by economics, and forced to watch the consequences of involuntary inaction.
+
+**The Stranded Knowledge**
+
+The picture resolves slowly: _Why this retry strategy on the message bus? Why do we retry HTTP requests with vendor A, and not vendor B? Why did the UI team introduce stores 18 months into the effort?_ The expertise is dispersed throughout the codebase itself — naming choices (one of the hardest problems of computer science), the tangled nest of conditionals no one touches, the integration facade that accounts for that quirky vendor.
+
+No single person holds this knowledge. Years of expertise accumulate in the code itself. It's the truest record of _why_ any system looks the way it does — no matter what Confluence or the READMEs say. The knowledge of when to retire a feature, or when to double down and bet everything...it's all hidden here.
+
+This expertise is trapped by entropy.
+
+We don't mean for our codebases to take us hostage, but this is one of the boss fights every success story must face, without fail. Orgs that win this fight learn to both leverage and rediscover domain expertise.
+
+Domain expertise isn't just knowing the codebase, it's knowing _why_ it's shaped the way it is. It's knowing which decisions were intentional, and which were accidents of history. AI is not good at discerning the difference.
+
+## Speed Isn't the Only Thing
+
+These ideas were apparent, even in my efforts to rewrite small, focused OSS libraries.
+
+Over 13 days and 136 [Claude](https://claude.com/product/claude-code) sessions (with 863 messages), I hit a 94% success rate. Only 20 of those sessions were directly related to my rewrite of postal.
+
+The 6% failure rate is rich territory.
+
+- Claude tried to thread the [`postal-transport-messageport`](https://postal-js.org/guide/transports/#postal-transport-messageport) behavior for transferables through postal core (an architectural smell, and not grasping good abstraction boundaries).
+- Claude misunderstood echo prevention in [`postal-transport-broadcastchannel`](https://postal-js.org/guide/transports/#postal-transport-broadcastchannel) and nearly set the codebase up for an insidious repeated message defect.
+- Claude proposed separate code paths for something postal core already handled - both when writing transport lib behavior, _and_ in an example app.
+
+Those failures are almost entirely Claude overstepping architectural boundaries or ignoring the existing patterns I'd established. That's not to knock Claude - it performed very well. But the pattern was clear: Claude is excellent at implementation velocity but it has no intuition for _your_ architecture. Course correcting it was easy because I know the domain.
+
+The _speed_ gain of having AI do the typing for me is what made these rewrites _possible_ in such a compressed time frame. My knowledge and experience is what made them _successful_.
+
+## Expert Vibes
+
+We're going to start to see a stratification of the "AI productivity multiplier" in the days ahead.
+
+The vibe coding economy and the stranded expertise economy are two layers within it.
+
+Vibe coded utilities — small apps, internal tools — don't demand deep domain knowledge. They have _very_ real value - and I'd argue it's a commodity value. Anyone with a prompt can make it, or regenerate it when it becomes clear it's not doing everything they want, or not doing it correctly. Developers who dismiss the importance & potential impact of vibe coded utilities make a grave mistake.
+
+The stranded expertise economy hides enormous value. But that value has an expiration date.
+
+For a period of time, orgs have the chance to execute that refactor, remove the blockers for that killer feature, task AI to crawl their system to help them grasp the cumulative effect of years of implicit decision-making.
+
+Eventually, the teams that act — and the new teams that never accept lasting tech debt as a constraint — will be so far ahead of those who hesitated that the moment will be gone.
+
+Once that window closes, the primary constraint on expertise will be knowing what decisions to make and why. This is, ironically, the _real_ problem underneath the symptoms of tech debt and feature debt. Writing code has never been the hardest problem. The productivity gains from AI have finally made the economics of digging down to this layer feasible.
+
+In this space of stranded expertise, developers who can't articulate architectural intent will be vastly outperformed by developers who can. **The developers who thrive will be the ones who learn to be _architects first and typists never_.**
+
+My efforts rewriting [machina](https://machina-js.org) and [postal](https://postal-js.org) over 13 days — not to mention the ~8 other libraries I've written in the last year — have served as proof that stranded expertise is much cheaper to rescue than ever. My team at [Apogee](https://apogeetravel.com) is seeing this in large codebases as well — refactors we once wrote off as impossible are now happening while we ship high-demand features.
