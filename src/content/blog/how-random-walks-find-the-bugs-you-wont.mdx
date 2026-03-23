@@ -1,14 +1,14 @@
 ---
 title: "How Random Walks Find the Bugs You Won't"
-description: "Traditional encode what you think the machine does. Random walks surface what it actually does under sequences you didn’t imagine."
+description: "Traditional tests encode what you think the machine does. Random walks surface what it actually does under sequences you didn’t imagine."
 date: 2026-03-22
 tags: ["testing", "fsm", "machina"]
-draft: true
+draft: false
 ---
 
 ## The gap between what you think and what is
 
-When you (or you LLM) write tests, every scenario that's written is a path you've proactively imagined. Assuming you've written solid tests, then the bugs live in the paths you didn't imagine. At a small scale you don't really have much to worry about. Yet, even a moderately sized app's testing surface area balloons quickly. With finite state machines, there's a combinatorial explosion of states and transitions that can still harbor bugs even at 100% coverage. (Oh, and if you don't think you have FSMs in your app, you do — even if they're informal and implicit.)
+When you (or your LLM) write tests, every scenario that's written is a path you've proactively imagined. Assuming you've written solid tests, then the bugs live in the paths you didn't imagine. At a small scale you don't really have much to worry about. Yet, even a moderately sized app's testing surface area balloons quickly. With finite state machines, there's a combinatorial explosion of states and transitions that can still harbor bugs even at 100% coverage. (Oh, and if you don't think you have FSMs in your app, you do — even if they're informal and implicit.)
 
 An FSM's surface area can feel deceptively simple, in part, because you can literally draw it. However, an 8-state, 15 transition machine has paths you'll never think to write explicit tests for. This is where moving from traditional testing to a property-based testing approach can make a huge difference.
 
@@ -24,13 +24,13 @@ This might seem overkill for simple cases like this, but apply this to our 8-sta
 
 Not going to lie, these concepts were new to me and still melting my brain a bit when I wrote [machina-test](https://machina-js.org/tools/machina-test/). The key issue I needed to solve for was "how do I reproduce the sequence of inputs that lead to a bug in the FSM if I'm generating random paths?" After all, what good is a test if it can't reproduce the error?
 
-This is when I learned I could use a pseudo-random number generator to 'seed' the paths. The key word here is _pseudo_. It's not truly random — it's a formula that produces a sequence that looks random but is completely determined by a starting number called the seed. Feed the same seed in and you get the same "random" sequence out. machina-test uses a tiny algorithm called mulberry32 for this — it's just 5 lines of math, no other deps. (Seriously, math nerds are next level awesome.) You give it a seed (just a number, e.g., 42), and it cranks out an identical sequence of picks: which input to fire, in what order, every step of each walk.
+This is when I learned I could use a pseudo-random number generator (PRNG) to 'seed' the paths. The key word here is _pseudo_. It's not truly random — it's a formula that produces a sequence that looks random but is completely determined by a starting number called the seed. Feed the same seed in and you get the same "random" sequence out. machina-test uses a tiny algorithm called [mulberry32](https://github.com/bryc/code/blob/master/jshash/PRNGs.md#mulberry32) for this — it's just 5 lines of math, no other deps. (Seriously, math nerds are next-level awesome.) You give it a seed (just a number, e.g., 42), and it cranks out an identical sequence of picks: which input to fire, in what order, every step of each walk.
 
 So here's the workflow:
 
-First run — you don't provide a seed. walkAll picks one at random and uses it to drive all the "random" input sequences.
+First run — you don't provide a seed. `walkAll` picks one at random and uses it to drive all the "random" input sequences.
 It fails — the error object carries the seed, the step number, and the exact input sequence that broke things.
-Replay — you pass that seed back into walkAll. Now it regenerates the exact same sequence of inputs. The failure reproduces every single time, like a deterministic unit test.
+Replay — you pass that seed back into `walkAll`. Now it regenerates the exact same sequence of inputs. The failure reproduces every single time, like a deterministic unit test.
 
 ```typescript
 // an invariant example - this is saying we should never go straight from green to red
@@ -40,22 +40,25 @@ const myRule = ({ state, previousState }: InvariantArgs) => {
   }
 };
 
+const config = { invariant: myRule, walks: 500 };
+
 // First run — discovers the bug
-walkAll(createTrafficLight, { invariant: myRule, walks: 500 });
+walkAll(createTrafficLight, config);
 // 💥 WalkFailureError: seed: 8675309, step 12, state "red"
 //    previousState: "green", input: "timer"
+//    The timer input doesn't matter, this would catch any input that led to a green -> red transition.
 //    "Whoa — green jumped straight to red on step 12"
 
 // Replay — same seed, same failure, every time
-walkAll(createTrafficLight, { invariant: myRule, walks: 500, seed: 8675309 });
+walkAll(createTrafficLight, { ...config, seed: 8675309 });
 // 💥 Same exact failure at step 12 — now you can debug it
 ```
 
 Without the seed, property-based testing would be like saying "there was an earthquake but I couldn't tell you how we got here." The seed is the earthquake's replay button.
 
-## Inside machina.js’s walk engine
+## Inside machina’s walk engine
 
-Machina's walk engine lives in a single file: walk.ts. If you still read code (you should!), it's compact enough to read while enjoying a hot beverage — but dense enough to actually learn from.
+[Machina](https://machina-js.org)'s walk engine lives in a single file: [walk.ts](https://github.com/ifandelse/machina.js/blob/master/packages/machina-test/src/walk.ts). If you still read code (you should!), it's compact enough to read while enjoying a hot beverage — but dense enough to actually learn from.
 
 `walkAll()` is the entry point. You give it a factory function (so each walk gets a fresh FSM) and a configuration object that controls three things: breadth (how many walks to run), depth (how many random inputs per walk), and the invariant — your rule that must hold after every single transition.
 
@@ -73,7 +76,7 @@ walkAll(createConnectionFsm, {
 });
 ```
 
-Under the hood, walkAll creates a seeded PRNG and then loops through walks. Each walk gets a fresh FSM, subscribes to the `transitioned` event, and fires random inputs one at a time. After every transition — including `_onEnter` bounces and deferred replays — it calls your invariant. If the invariant returns false or throws, the walk stops and you get a [`WalkFailureError`](https://machina-js.org/tools/machina-test/#walkfailureerror).
+Under the hood, `walkAll` creates a seeded PRNG and then loops through walks. Each walk gets a fresh FSM, subscribes to the `transitioned` event, and fires random inputs one at a time. After every transition — including `_onEnter` bounces and deferred replays — it calls your invariant. If the invariant returns false or throws, the walk stops and you get a [`WalkFailureError`](https://machina-js.org/tools/machina-test/#walkfailureerror).
 
 That error is where the real value lives:
 
@@ -94,19 +97,20 @@ Input sequence:
 
 These fields on the error are available programmatically: `err.seed`, `err.step`, `err.inputSequence`, `err.state`, `err.previousState`, `err.ctx`.
 
-Pass the error's seed back into walkAll and you get the exact same walk, every time. This means reproducing the error is simple, and immediately reveals "Ah, this is the path I hadn't considered."
+Pass the error's seed back into `walkAll` and you get the exact same walk, every time. This means reproducing the error is simple, and immediately reveals "Ah, this is the path I hadn't considered."
 
 ## Writing invariants that find real bugs
 
 Assertions are probably no surprise to you. "When I call login(), the state should be authenticated." Traditional assertions are targeted to one specific moment in one specific test. The invariants shown above make a stronger claim. They're saying "this must be true after every transition, in every state, no matter what sequence of inputs got us here." It's not "check this spot", it's more like "this is the law of physics in my system".
 
-From what I've learned so far, good invariant candidates seem to fall into three buckets:
+From what I've learned so far, good invariant candidates seem to fall into four buckets:
 
-- **Access control**: "the authenticated state is never reached without credentials present on the context." If your FSM can stumble into `authenticated` through some weird sequence of deferred inputs and `_onEnter` bounces, the walk will find it.
-- **Monotonic counters**: "retry count only increments after a failure transition — never during success paths." A walk that discovers retryCount incrementing after a connected → idle transition has just found a bug your traditional tests missed.
-- **Data preservation**: "cancelling from any state never drops unsaved changes." This kind of thing is painful to test by hand because "any state" means _any_ state — including ones you _forgot_ exist.
+- **State reachability**: "the authenticated state is never reached without credentials present on the context." If your FSM can stumble into `authenticated` through some weird sequence of deferred inputs and `_onEnter` bounces, the walk will find it.
+- **Transition-scoped mutation**: "retry count only increments after a failure transition — never during success paths." A walk that discovers retryCount incrementing after a connected → idle transition has just found a bug your traditional tests missed.
+- **Conservation across transitions**: "cancelling from any state never drops unsaved changes." This kind of thing is painful to test by hand because "any state" means _any_ state — including ones you _forgot_ exist.
+- **Mutual exclusion / state consistency**: "If we're in state X, property Y and property Z cannot both be true." In practice this might look something like "If we're in the disconnected state, the retry queue should be empty".
 
-Here's what a data-preservation invariant could look like in practice:
+Here's what a "conservation across transitions" invariant could look like in practice:
 
 ```typescript
 const noSilentDataLoss = ({ state, previousState, ctx }: InvariantArgs) => {
@@ -125,7 +129,7 @@ One practical tip: start by encoding bugs you've already shipped. Did your FSM i
 
 ## When to use this approach
 
-The obvious answer is "when you've been surprised by an edge case in production" that "shouldn't" happen. Another glaringly obvious case is when your test file is significantly longer than your FSM's implementation. This might indicate you're attempting to cover all the permutations with traditional tests. Of course, this approach will be useful on complex FSMs that require a whiteboard session and part of your afternoon to explain.
+The obvious answer is "when you've been surprised by an edge case in production" that "shouldn't" happen. Another, more subtly obvious case is when your test file is significantly longer than your FSM's implementation. This might indicate you're attempting to cover all the permutations with traditional tests. Of course, this approach will be useful on complex FSMs that require a whiteboard session and part of your afternoon to explain.
 
 This approach should not replace the critical paths that have known expected outputs/results. Random walks are a complement to your critical path tests.
 
