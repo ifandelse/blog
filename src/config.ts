@@ -65,7 +65,7 @@ export const siteConfig = {
   },
 
   seo: {
-    ogImage: "/og-image.svg",
+    ogImage: "/og-default.png",
     twitterCard: "summary_large_image" as const,
     twitterHandle: "@ifandelse",
     googleSiteVerification: "",

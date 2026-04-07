@@ -33,9 +33,10 @@ const readingTime = getReadingTime(post.body);
 const typingSpeed = Math.max(20, Math.min(60, Math.round(1500 / post.data.title.length)));
 ---
 
-<Layout 
-  title={`${post.data.title} | ${siteConfig.title}`} 
+<Layout
+  title={`${post.data.title} | ${siteConfig.title}`}
   description={post.data.description}
+  image={post.data.image || `/og/${post.slug}.png`}
   article={true}
   publishedTime={post.data.date.toISOString()}
   tags={post.data.tags}
