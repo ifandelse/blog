@@ -6,6 +6,8 @@ tags: ["typescript", "errors", "error-handling", "better-result", "effect"]
 draft: false
 ---
 
+import Callout from "../../components/Callout.astro";
+
 ## Catch This
 
 The user had found the perfect location, and just wanted to book a room. Not caring (nor needing to care) about the four integrations in the background involved in orchestrating the outcome, they click "Book Now", and expect everything to just work. The momentary blip surprised them, but the screen said "please try again", so they did.
@@ -287,7 +289,10 @@ What this means in this example:
 - The error union (`BookingError`) is _inferred_ from every `yield*`
 - If you add a new failure mode (error type), the union automatically widens to include it.
 
-> Sidenote: I'm using `yield*` and not `yield` since it invokes on `Ok`/`Err`, which either returns the inner value, or short-circuits with the error.
+<Callout type="note">
+  I'm using `yield*` and not `yield` since it invokes on `Ok`/`Err`, which
+  either returns the inner value, or short-circuits with the error.
+</Callout>
 
 ### Tying it together
 

@@ -550,6 +550,33 @@ h1, h2, h3, h4, h5, h6 {
   font-family: var(--font-mono);
 }
 
+/* Callout / admonition blocks */
+.callout {
+  --callout-accent: var(--color-accent);
+  border-left: 4px solid var(--callout-accent);
+  background-color: color-mix(in srgb, var(--callout-accent) 8%, transparent);
+  border-radius: 0.375rem;
+  padding: 1rem 1.25rem;
+}
+
+.callout-tip { --callout-accent: var(--color-accent); }
+.callout-note { --callout-accent: var(--color-muted-foreground); }
+.callout-warning { --callout-accent: #d97706; }
+.callout-danger { --callout-accent: var(--color-destructive); }
+
+.callout-label {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--callout-accent);
+  margin-bottom: 0.5rem;
+}
+
+.callout-body > :first-child { margin-top: 0; }
+.callout-body > :last-child { margin-bottom: 0; }
+
 /* Status bar */
 .status-bar {
   display: flex;

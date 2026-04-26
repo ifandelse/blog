@@ -1,0 +1,30 @@
+---
+// Callout / admonition block for use in MDX pages
+// Usage: <Callout type="tip">Your content here</Callout>
+//        <Callout type="warning" title="Heads up">...</Callout>
+// Markdown works inside - just write normally.
+type CalloutType = "tip" | "note" | "warning" | "danger";
+
+interface Props {
+  type?: CalloutType;
+  title?: string;
+}
+
+const { type = "tip", title } = Astro.props;
+
+const defaultTitle: Record<CalloutType, string> = {
+  tip: "Tip",
+  note: "Note",
+  warning: "Warning",
+  danger: "Danger",
+};
+
+const label = title ?? defaultTitle[type];
+---
+
+<aside class={`callout callout-${type} my-6`} role="note">
+  <div class="callout-label">{label}</div>
+  <div class="callout-body">
+    <slot />
+  </div>
+</aside>
