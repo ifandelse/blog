@@ -12,7 +12,7 @@ The user had found the perfect location, and just wanted to book a room. Not car
 
 Unfortunately, your service layer just swallowed an OTA 299 error: Credit card authorization time out. But the thing is - it actually succeeded, just took too long to respond. So now you've charged your boss's good friend twice for the room.
 
-You vaguely recall there being around one hundred possible error codes in the OpenTravel Alliance spec for making reservations. But there, in your app's service code, there's a `try/catch`, a reference to an `isRetryable` boolean, and a toast call that tells the user they should try again.
+You vaguely recall there being around one hundred possible error codes in the OpenTravel Alliance spec for making reservations. But there, in your app's code, there's a `try/catch`, a reference to an `isRetryable` boolean, and a toast call that tells the user they should try again.
 
 Neither you, nor your `tsc` know what specific error conditions are handled, how they affect what the UI shows, or if they help agents understand what to do next.
 
