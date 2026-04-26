@@ -105,7 +105,8 @@ export async function generateOgImage({
                     flexDirection: 'column',
                     flex: 1,
                     padding: '32px 36px',
-                    justifyContent: 'space-between',
+                    justifyContent: 'center',
+                    gap: '32px',
                   },
                   children: [
                     // Content area

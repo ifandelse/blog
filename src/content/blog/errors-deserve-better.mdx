@@ -1,0 +1,382 @@
+---
+title: "Errors Deserve Better"
+description: "TypeScript treats `catch (e)` as `unknown`, so odds are your codebase has hidden and unhandled error paths. better-result puts every failure mode back in the function signature, and lets each one get the response it actually deserves."
+date: 2026-04-25
+tags: ["typescript", "errors", "error-handling", "better-result", "effect"]
+draft: false
+---
+
+## Catch This
+
+The user had found the perfect location, and just wanted to book a room. Not caring (nor needing to care) about the four integrations in the background involved in orchestrating the outcome, they click "Book Now", and expect everything to just work. The momentary blip surprised them, but the screen said "please try again", so they did.
+
+Unfortunately, your service layer just swallowed an OTA 299 error: Credit card authorization time out. But the thing is - it actually succeeded, just took too long to respond. So now you've charged your boss's good friend twice for the room.
+
+You vaguely recall there being around one hundred possible error codes in the OpenTravel Alliance spec for making reservations. But there, in your app's service code, there's a `try/catch`, a reference to an `isRetryable` boolean, and a toast call that tells the user they should try again.
+
+Neither you, nor your `tsc` know what specific error conditions are handled, how they affect what the UI shows, or if they help agents understand what to do next.
+
+## Quite a Catch
+
+In TypeScript, the `e` in a `catch (e)` is `unknown` (or `any` pre v4.4). Six-months-ago you might have remembered what `e` could've been, but the only thing clear in the codebase is what you _wished_ had happened.
+
+We can see that the call returns a `Promise<T>` - but Promise return types like this are a lie of omission. Think about it. In this OTA example, we're expecting a `Promise<Booking>`, but this tells us absolutely nothing about what can go _wrong_. What if the credit card authorization times out? What if someone else booked the room right before we did? What if the room's rate changed since you loaded the page?
+
+This tells us, the typescript compiler, and your coding agent _nothing_ about those possibilities:
+
+```typescript
+const booking: Promise<Booking> = gdsClient.createBooking(options);
+```
+
+What if we could do something _conceptually_ like this instead?
+
+```typescript
+// BookingError = discriminated union of error-specific types (RateChanged, PaymentLimbo, etc.)
+// Obviously, this isn't valid TS - this is a conceptual "what-if"
+const bookingResult: Promise<Booking, BookingError> =
+  gdsClient.createBooking(options);
+```
+
+What if we could go a step further and require all the error types to be explicitly handled?
+
+## Pass the Sugar, Please
+
+Turns out, Rust (among many languages) has a built-in pattern for this. Let's look at a simplified expression of our problem in Rust:
+
+```rust
+// Warning: I'm not a Rust dev, nor do I play one on TV
+// Rust enums are sum types: each variant can carry its own typed payload.
+// Closest TS analog: a discriminated union (with a `_tag` or `kind` field).
+enum BookingError {
+    RoomUnavailable,                         // unit variant — no payload
+    RateChanged { old: u32, new: u32 },      // payload with named fields (u32 = unsigned 32-bit int)
+    PaymentDeclined,
+}
+
+// `fn` = function. The return type Result<Booking, BookingError> is stdlib —
+// it's either Ok(Booking) or Err(BookingError). Unlike TS's Promise<Booking>,
+// BOTH the success AND failure types are part of the signature.
+fn reserve_room(req: Request) -> Result<Booking, BookingError> {
+    let room = confirm_availability(req)?;   // `?` unwraps Ok, or short-circuits the function with Err
+    let txn  = authorize_payment(&room)?;    // `&room` = pass a reference (borrow), not move ownership
+    submit_reservation(room, txn)            // last expression returns implicitly — no `return` keyword needed
+}
+
+// inside some calling function...
+// `match` is exhaustive: omit a variant and the compiler refuses to build.
+// Like a TS `switch` on a discriminant, but enforced by the type system.
+// This isn't valid Rust, technically - just showing how each success/error case
+// could then drive downstream UX decisions.
+match reserve_room(req) {
+    Ok(b)                                       => /* confirmation */,
+    Err(BookingError::RoomUnavailable)          => /* show alternates */,
+    Err(BookingError::RateChanged { old, new }) => /* destructure payload, re-confirm */,
+    Err(BookingError::PaymentDeclined)          => /* payment error */,
+}
+```
+
+The most important takeaway from the above snippet is the part that says "BOTH the success AND failure types are part of the signature". Once you have that, you can enforce "matching" against the now-known error conditions.
+
+Turns out, libraries like [better-result](https://better-result.dev/) and [Effect](https://www.effect.website/) give us the tools to apply this same pattern in TypeScript.
+
+- Effect - this is really a full-fledged ecosystem that addresses what many complain is TypeScript's lack of a standard lib. You get far more than just improved error handling, it comes with fibers, DI, streams, ai-related packages and a lot more. Created by [Effectful Technologies Inc.](https://effectful.co/)
+- better-result - lightweight + tightly focused on what we're discussing: giving TypeScript devs a `Result` type, first-class pattern matching on errors, and a few more related utilities. Created by [Dillon Mulroy](https://github.com/dmmulroy)
+
+For this post, I'll be using better-result.
+
+## Getting Better Results
+
+Let's look at the `Result` type that better-result gives us:
+
+```typescript
+// Pulled from https://better-result.dev/introduction
+import { Result } from "better-result";
+
+// Wrap throwing functions
+const parsed = Result.try(() => JSON.parse(input));
+
+// Check and use
+if (Result.isOk(parsed)) {
+  console.log(parsed.value);
+} else {
+  console.error(parsed.error);
+}
+
+// Or use pattern matching
+const message = parsed.match({
+  ok: (data) => `Got: ${data.name}`,
+  err: (e) => `Failed: ${e.message}`,
+});
+```
+
+After reading the above snippet, you can understand better-result's introduction quote:
+
+> "Say goodbye to try/catch blocks and hello to functional, composable error handling with the Result type."
+
+Nothing in that snippet relies on `throw`, `catch`, etc. for control flow, and yet it still gives us all the facilities to handle the happy and sad paths.
+
+Now let's take these concepts and apply them to our hotel room booking dilemma.
+
+## Tag, You're It
+
+better-result gives us `TaggedError`, which is described as a "factory for creating discriminated error classes". Below, we'll use `TaggedError` to cover some of these failure cases in our hotel booking scenario, plus two generic error possibilities. The syntax might look strange at first, but you'll quickly see what's going on.
+
+```typescript
+import { TaggedError } from "better-result";
+
+class RoomUnavailable extends TaggedError("RoomUnavailable")<{
+  message: string;
+  hotelId: string;
+  roomCode: string;
+}>() {}
+
+class RateChanged extends TaggedError("RateChanged")<{
+  message: string;
+  hotelId: string;
+  oldRate: number;
+  newRate: number;
+}>() {}
+
+class PaymentLimbo extends TaggedError("PaymentLimbo")<{
+  message: string;
+  reservationAttemptId: string;
+  cause: unknown;
+}>() {}
+
+class TransientVendorError extends TaggedError("TransientVendorError")<{
+  message: string;
+  vendor: string;
+  cause: unknown;
+}>() {}
+
+class InvalidBookingInput extends TaggedError("InvalidBookingInput")<{
+  message: string;
+  field: string;
+}>() {}
+
+type BookingError =
+  | RoomUnavailable
+  | RateChanged
+  | PaymentLimbo
+  | TransientVendorError
+  | InvalidBookingInput;
+```
+
+At this point, you may be wondering how this is any different than your own custom errors that extend the Error type. Let's do a high level comparison of the "OG" `try/catch` approach and better-result.
+
+Let's assume we want to do the following steps (under the hood) when we call our `reserveRoom` method:
+
+1. Validate the booking options
+2. Confirm the room is still available and lock inventory
+3. Authorize payment with the processor
+4. Submit the reservation to the GDS/Hotel
+5. Persist the confirmation
+
+Yes, this example is about travel, but really, you can substitute it in your own mind for whatever service pain points you face daily. Each step can fail, and each failure has a different appropriate response.
+
+### try/catch
+
+```typescript
+async function reserveRoomNaive(req: BookingRequest): Promise<Booking> {
+  try {
+    return await gds.reserveRoom(req);
+  } catch (e) {
+    toast.error("Something went wrong. Please try again.");
+    throw e;
+  }
+}
+```
+
+The above snippet is what happens when everyone from a junior dev to a frustrated senior dev collapses the error cases, shrugs, and punts with a toast.
+
+There's still room for improvement here. We could test for error types like this:
+
+```typescript
+try {
+  return await gds.reserveRoom(req);
+} catch (e) {
+  // `e` is `unknown` — we have to narrow it ourselves before we can do anything
+  if (e instanceof GdsTimeoutError) {
+    toast.error("Request timed out. Please try again.");
+  } else if (e instanceof GdsRateLimitError) {
+    toast.error("Too many requests. Please wait and retry.");
+  } else if (
+    typeof e === "object" &&
+    e !== null &&
+    "code" in e &&
+    (e as { code: unknown }).code === "RATE_CHANGED"
+  ) {
+    toast.error("The rate has changed since you started booking.");
+  } else if (
+    e instanceof Error &&
+    e.message.toLowerCase().includes("payment")
+  ) {
+    toast.error("Payment failed. Please check your card.");
+  } else {
+    toast.error("Something went wrong. Please try again.");
+  }
+  throw e;
+}
+```
+
+This might improve _some_ things at runtime, but it has a few problems:
+
+- type checking is still blind to the error cases
+- matching to specific strings/properties to test for error type is brittle.
+- Scale this code to handle the ~115 OTA error codes and it will be your worst nightmare
+- Our starting example (OTA 299) still gets retried naively. It might look like we tried to handle it better in this code, but the user still gets a toast encouraging them to try again.
+
+## Trying Smarter, Not Harder
+
+Gracefully handling issues like the payment authorization timeout error starts with smartly wrapping those external SDK calls.
+
+First, let's wrap our fictional payment process call using better-result:
+
+```typescript
+import { Result } from "better-result";
+
+function authorizePayment(
+  req: ValidatedBooking
+): Promise<Result<PaymentTxn, PaymentLimbo | TransientVendorError>> {
+  return Result.tryPromise({
+    try: () => paymentProcessor.authorize(req.card, req.total),
+    catch: (cause) => {
+      if (isTimeout(cause)) {
+        return new PaymentLimbo({
+          message: "Payment authorization timed out",
+          reservationAttemptId: req.attemptId,
+          cause,
+        });
+      }
+      return new TransientVendorError({
+        message: "Payment processor failed",
+        vendor: "stripe",
+        cause,
+      });
+    },
+  });
+}
+```
+
+"Whoa! You snuck a helper in there that's probably doing the same kind of type narrowing you just complained about above!"
+
+Yes, you caught me. 😀 The `isTimeout` is a custom helper that would check the shape of the error to test if it's a payment auth timeout error. The key difference, though, is that we've changed where this lives. We're building what Domain-Driven Design calls an anti-corruption layer. Our type-narrowing logic isn't clustered together in an endless sprawl of if/else branching. It's kept at the relevant edge - where we call the vendor SDK.
+
+If we compose the earlier "under-the-hood" steps I mentioned, using better-result, it could look something like this:
+
+```typescript
+function reserveRoom(
+  req: BookingRequest
+): Promise<Result<Booking, BookingError>> {
+  return Result.gen(async function* () {
+    const validated = yield* validateBookingRequest(req);
+    const locked = yield* Result.await(confirmAvailability(validated));
+    const payment = yield* Result.await(authorizePayment(validated));
+    const submitted = yield* Result.await(submitReservation(locked, payment));
+    const booking = yield* Result.await(persistConfirmation(submitted));
+    return Result.ok(booking);
+  });
+}
+```
+
+This introduces the `Result.gen` behavior from better-result. This lets us treat a series of operations as if it were synchronous code (it's not), while allowing it to shortcut on the first error, _and_ giving our type system a union of the possible error types involved in the operation(s).
+
+What this means in this example:
+
+- If `confirmAvailability` returns `RoomUnavailable`, then `authorizePayment` is never called
+- The error union (`BookingError`) is _inferred_ from every `yield*`
+- If you add a new failure mode (error type), the union automatically widens to include it.
+
+> Sidenote: I'm using `yield*` and not `yield` since it invokes on `Ok`/`Err`, which either returns the inner value, or short-circuits with the error.
+
+### Tying it together
+
+Here's where we reach the payoff. Each error variant can get a distinct UX response, all while being enforced by the compiler (and not just aspirationally detected at runtime).
+
+```typescript
+import { matchError } from "better-result";
+
+const result = await reserveRoom(req);
+
+// use better-result's pattern matching to discretely respond to each variant
+const uxResponse = result.match({
+  ok: (booking) => ({
+    kind: "success" as const,
+    confirmation: booking.confirmationCode,
+  }),
+  err: (error) =>
+    matchError(error, {
+      RoomUnavailable: (e) => ({
+        kind: "show-alternates" as const,
+        hotelId: e.hotelId,
+        message: "That room just sold out — here are similar options.",
+      }),
+      RateChanged: (e) => ({
+        kind: "reconfirm-price" as const,
+        oldRate: e.oldRate,
+        newRate: e.newRate,
+      }),
+      PaymentLimbo: (e) => ({
+        kind: "escalate" as const,
+        attemptId: e.reservationAttemptId,
+        message:
+          "We can't confirm payment status. Our team has been notified — do not retry.",
+      }),
+      TransientVendorError: () => ({
+        kind: "silent-retry" as const,
+      }),
+      InvalidBookingInput: (e) => ({
+        kind: "form-error" as const,
+        field: e.field,
+        message: e.message,
+      }),
+    }),
+});
+```
+
+You can infer from the above snippet that `Result.match` handles success and failure scenarios (`ok` vs `err`). `matchError` gives us a clean way to discriminate between error types and choose how we react. If we drop one of those error matches from `matchError`, the compiler will refuse to build.
+
+Finally, our OTA 299 payment error has been handled, and not lost in the mix of a generic "something went wrong, try again."
+
+## Caveat Emptor
+
+You might have realized by now that adopting this approach will have a tendency to "go viral" across your codebase. Once a function returns a `Result` type, callers either have to propagate it, or unpack it and throw (or handle it inline). This is a very real trade-off, but there are a couple of things to keep in mind. First, if you have custom error types, and you're testing for them in a `catch`, then you're already doing this — only you're doing it informally in a way that the compiler can't really assist you.
+
+Second, you can choose to adopt this across your whole codebase, OR, you can focus on using it at the edges initially (as an anti-corruption layer), deferring the "viral" decision. This still means that at least one layer up (into your service stack) has to know what a `Result` type is (and likely unpack, then throw). That's an acceptable trade-off.
+
+A practical adoption approach would be to pick one integration, wrap it, and define the variants for what can fail. Then match exhaustively in the next layer up.
+
+## Summarizing Advantages
+
+- **The error path becomes part of the API contract.**
+  - `Promise<Booking>` is a lie of omission, but `Result<Booking, BookingError>` is not.
+  - A human or LLM reader can read the signature and know how the operation can fail.
+- **It gives you refactor-proof error handling.**
+  - Adding a new error variant simply widens the error union automatically.
+  - This takes "type safety" into the territory of "automatic propagation of new failure modes through the call stack"
+- **Better constraints for AI assistance.**
+  - AI without typed errors will tend towards speculative `if (e.code === "...")` checks as it fails back to generic training. This is hallucination territory!
+  - AI assistance with a discriminated union has a finite, type-checked search space.
+  - The compiler steers the agent towards real error cases through real typecheck feedback.
+
+I can't emphasize that last point enough. Generative AI assitance needs 'rails' to lock onto - especially in large codebases over time. Verification feedback from type-checking is a powerful signal to LLMs. Introducing new error variants into a large app can have subtle ripple effects that cross boundaries, so why not use an approach that doesn't skimp on compiler feedback? Typed errors, and the ability to enforce that you've handled the variants you've defined, are like RAG for your error handling concerns.
+
+## Where to Go From Here
+
+Read through [better-result's](https://better-result.dev) documentation. Then pick one integration in your codebase. Start by wrapping it with `Result.tryPromise`, define your `TaggedError` variants, match exhaustively, and see how much clearer things become. This is a targeted PR, strategically touching a small part of your codebase.
+
+Then, dive into the other tools better-result gives you:
+
+- `map` / `mapError` — transform success or error values without unwrapping
+- `andThen` — chain when you want pipeline style instead of generator style
+- `tap` / `tapError` — side effects (logging, metrics) without breaking the chain
+- `Result.try()` — the sync version of `tryPromise` for synchronous boundaries
+- `matchErrorPartial` — partial matching with type-narrowed fallback when you only care about a few variants
+- Built-in retry config on `tryPromise` (delay, backoff, conditional retry predicate) — covers most "transient error" cases without a separate library
+- Serialization helpers — for sending Result values across RPC / server actions / worker boundaries
+
+I'd also suggest looking at [projects that depend on better-result](https://www.npmjs.com/package/better-result?activeTab=dependents). I think this kind of error handling is essential for reliable + predictable tool use by an agent (whether CLI or MCP), and you'll see several dependents along these lines in that list.
+
+I also strongly recommend exploring [Effect](https://www.effect.website/) as well. I [recently learned about them](https://x.com/_ashleypeacock/status/2047053156207497527) in a thread with [Ashley Peacock](https://x.com/_ashleypeacock). It's an astonishinly comprehensive TS ecosystem.
+
+Happy error handling!
