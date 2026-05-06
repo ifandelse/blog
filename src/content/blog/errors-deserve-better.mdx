@@ -274,7 +274,7 @@ function reserveRoom(
     /*
       There's 3 integration patterns, depending on what the helper(s) return:
           - a bare `yield*` if it's sync & returns Result (like validateBookingRequest below)
-          - `yeild* Result.await(...) if it return Promise<Result> (like the other 4 calls below)
+          - `yield* Result.await(...) if it return Promise<Result> (like the other 4 calls below)
           - OR, if you had a helper that was a plain Promise<T> that wasn't converted to resolve
             a Result, you'd wrap it with `Result.tryPromise` (like we did in the authorizePayment
             example above)
