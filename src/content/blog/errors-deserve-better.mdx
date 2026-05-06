@@ -274,7 +274,7 @@ function reserveRoom(
     /*
       There's 3 integration patterns, depending on what the helper(s) return:
           - a bare `yield*` if it's sync & returns Result (like validateBookingRequest below)
-          - `yield* Result.await(...) if it return Promise<Result> (like the other 4 calls below)
+          - `yield* Result.await(...)` if it return Promise<Result> (like the other 4 calls below)
           - OR, if you had a helper that was a plain Promise<T> that wasn't converted to resolve
             a Result, you'd wrap it with `Result.tryPromise` (like we did in the authorizePayment
             example above)
@@ -390,6 +390,6 @@ Then, dive into the other tools better-result gives you:
 
 I'd also suggest looking at [projects that depend on better-result](https://www.npmjs.com/package/better-result?activeTab=dependents). I think this kind of error handling is essential for reliable + predictable tool use by an agent (whether CLI or MCP), and you'll see several dependents along these lines in that list.
 
-I also strongly recommend exploring [Effect](https://www.effect.website/) as well. I [recently learned about them](https://x.com/_ashleypeacock/status/2047053156207497527) in a thread with [Ashley Peacock](https://x.com/_ashleypeacock). It's an astonishinly comprehensive TS ecosystem.
+I also strongly recommend exploring [Effect](https://www.effect.website/) as well. I [recently learned about them](https://x.com/_ashleypeacock/status/2047053156207497527) in a thread with [Ashley Peacock](https://x.com/_ashleypeacock). It's an astonishingly comprehensive TS ecosystem.
 
 Happy error handling!
