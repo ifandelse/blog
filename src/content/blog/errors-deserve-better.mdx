@@ -262,7 +262,7 @@ function authorizePayment(
 
 "Whoa! You snuck a helper in there that's probably doing the same kind of type narrowing you just complained about above!"
 
-Yes, you caught me. 😀 The `isTimeout` is a custom helper that would check the shape of the error to test if it's a payment auth timeout error. The key difference, though, is that we've changed where this lives. We're building what Domain-Driven Design calls an anti-corruption layer. Our type-narrowing logic isn't clustered together in an endless sprawl of if/else branching. It's kept at the relevant edge - where we call the vendor SDK.
+Yes, you caught me. 😀 The `isTimeout` is a custom helper that would check the shape of the error to test if it's a payment auth timeout error. The key difference, though, is that we've changed where this lives. We're building what Domain-Driven Design calls an [anti-corruption layer](https://ddd-practitioners.com/home/glossary/bounded-context/bounded-context-relationship/anticorruption-layer/). Our type-narrowing logic isn't clustered together in an endless sprawl of if/else branching. It's kept at the relevant edge - where we call the vendor SDK.
 
 If we compose the earlier "under-the-hood" steps I mentioned, using better-result, it could look something like this:
 
@@ -271,6 +271,14 @@ function reserveRoom(
   req: BookingRequest
 ): Promise<Result<Booking, BookingError>> {
   return Result.gen(async function* () {
+    /*
+      There's 3 integration patterns, depending on what the helper(s) return:
+          - a bare `yield*` if it's sync & returns Result (like validateBookingRequest below)
+          - `yeild* Result.await(...) if it return Promise<Result> (like the other 4 calls below)
+          - OR, if you had a helper that was a plain Promise<T> that wasn't converted to resolve
+            a Result, you'd wrap it with `Result.tryPromise` (like we did in the authorizePayment
+            example above)
+    */
     const validated = yield* validateBookingRequest(req);
     const locked = yield* Result.await(confirmAvailability(validated));
     const payment = yield* Result.await(authorizePayment(validated));
@@ -281,7 +289,7 @@ function reserveRoom(
 }
 ```
 
-This introduces the `Result.gen` behavior from better-result. This lets us treat a series of operations as if it were synchronous code (it's not), while allowing it to shortcut on the first error, _and_ giving our type system a union of the possible error types involved in the operation(s).
+This introduces the `Result.gen` behavior from better-result. `Result.gen` lets us treat a series of operations as if it were synchronous code (it's not), while allowing it to shortcut on the first error, _and_ giving our type system a union of the possible error types involved in the operation(s).
 
 What this means in this example:
 
@@ -339,7 +347,7 @@ const uxResponse = result.match({
 });
 ```
 
-You can infer from the above snippet that `Result.match` handles success and failure scenarios (`ok` vs `err`). `matchError` gives us a clean way to discriminate between error types and choose how we react. If we drop one of those error matches from `matchError`, the compiler will refuse to build.
+You can infer from the above snippet that `Result.match` handles success and failure scenarios (`ok` vs `err`). `matchError` gives us a clean way to discriminate between error types and choose how we react. (So, in essence, `match` answers "Did it work?" and `matchError` answers "Which way did it fail?") If we drop one of those error matches from `matchError`, the compiler will refuse to build.
 
 Finally, our OTA 299 payment error has been handled, and not lost in the mix of a generic "something went wrong, try again."
 
